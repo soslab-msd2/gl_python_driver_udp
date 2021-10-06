@@ -344,6 +344,8 @@ class GL(object):
 # main
 if __name__ == '__main__':
     
+
+    cv2.namedWindow('lidar_img')
     with udp_comm.UdpReaderThread(GL) as udp_gl:
         try:
             print('Start GL Python Driver')
@@ -359,6 +361,8 @@ if __name__ == '__main__':
             meter_to_pixel = 32.0/0.6
 
             start = time.time()
+            
+
             while True:
                 distance, pulse_width, angle = udp_gl.ReadFrameData()
 
@@ -371,6 +375,7 @@ if __name__ == '__main__':
 
                 img_view = np.zeros((height,width,3), np.uint8)
 
+                
                 x = distance*np.cos(angle)
                 y = distance*np.sin(angle)
                 
@@ -382,11 +387,12 @@ if __name__ == '__main__':
 
                 # print('loop hz:',1/(a-loop_time_prev).total_seconds())
                 # loop_time_prev = a
+                if len(distance):
 
-                cv2.imshow('lidar img',img_view)
-                cv2.waitKey(1)
+                    cv2.imshow('lidar_img',img_view)
+                    cv2.waitKey(1)
                     
-                time.sleep(0.025)
+                time.sleep(0.0125)
         except KeyboardInterrupt:
             udp_gl.SetFrameDataEnable(False)
             print('End GL Python Driver')
