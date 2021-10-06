@@ -18,13 +18,14 @@ gl_port = 2000
 class UdpReaderThread(threading.Thread):
     def __init__(self, protocol_factory):
         super(UdpReaderThread, self).__init__()
-        self.daemon = True
-        self.protocol_factory = protocol_factory	
-        self.alive = True	
-        self._lock = threading.Lock()	
-        self._connection_made = threading.Event()	
-        self.protocol = None	
 
+        self.daemon = True
+        self.alive = True
+        self.protocol_factory = protocol_factory
+
+        self._lock = threading.Lock()
+        self._connection_made = threading.Event()
+        self.protocol = None
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind((pc_addr, pc_port))
