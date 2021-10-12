@@ -2,49 +2,54 @@
 
 import sys
 import time
-import numpy as np
 
+import numpy as np
 import udp_comm
 import cv2
 
-PS1             = 0xC3	
-PS2             = 0x51	
-PS3             = 0xA1	
-PS4             = 0xF8	
-PE              = 0xC2	
-SM_SET          = 0	
-SM_GET          = 1	
-SM_STREAM       = 2	
-SM_ERROR        = 255	
-BI_PC2GL        = 0x21	
-BI_GL2PC        = 0x12	
-STATE_INIT      = 0	
-STATE_PS1       = 1	
-STATE_PS2       = 2	
-STATE_PS3       = 3	
-STATE_PS4       = 4	
-STATE_TL        = 5	
-STATE_PAYLOAD   = 6	
-STATE_CS        = 7	
+
+PS1             = 0xC3
+PS2             = 0x51
+PS3             = 0xA1
+PS4             = 0xF8
+PE              = 0xC2
+
+SM_SET          = 0
+SM_GET          = 1
+SM_STREAM       = 2
+SM_ERROR        = 255
+
+BI_PC2GL        = 0x21
+BI_GL2PC        = 0x12
+
+STATE_INIT      = 0
+STATE_PS1       = 1
+STATE_PS2       = 2
+STATE_PS3       = 3
+STATE_PS4       = 4
+STATE_TL        = 5
+STATE_PAYLOAD   = 6
+STATE_CS        = 7
+
 
 class GL(object):	
     def connection_made(self, transport):	
         """Called when reader thread is started"""	
         self.transport = transport	
     def data_received(self, data):	
-        """Called with snippets received from the serial port"""	
+        """Called with snippets received from the UDP"""	
         for a in data:	
             self.AddPacketElement(a)	
         	
     def connection_lost(self, exc):	
         """\	
-        Called when the serial port is closed or the reader loop terminated	
+        Called when the UDP is closed or the reader loop terminated	
         otherwise.	
         """	
         self.transport = None	
         if isinstance(exc, Exception):	
-
             raise exc	
+
     #############################################################	
     #  Constructor and Deconstructor for GL Class	
     #############################################################	
@@ -56,7 +61,7 @@ class GL(object):
         	
         	
     #############################################################	
-    #  Functions for Serial Comm	
+    #  Functions for UDP Comm	
     #############################################################	
     def read_cs_update(self, data):	
         self.read_cs = self.read_cs ^ (data & 0xff)	
@@ -80,9 +85,8 @@ class GL(object):
     def SendPacket(self, packet):	
         for data in packet:	
             self.transport.write(bytes(bytearray([data])))	
+
     def WritePacket(self, PI, PL, SM, CAT0, CAT1, DTn):	
-        
-    
         self.send_packet = []	
         self.write_cs_clear()	
         self.write_PS()	
@@ -136,8 +140,6 @@ class GL(object):
         if SM!=SM_STREAM or len(recv_data)==0:
             return
         
-        #print('len:',len(recv_data),'type:',recv_data)
-
         if PI==0:
             self.lidar_data = []
             self.lidar_data.append(recv_data)
@@ -151,15 +153,8 @@ class GL(object):
             if len(self.lidar_data[0])<3:
                 self.lidar_data = []
                 return
-             
-            #print('len:',len(self.lidar_data),'lidar:',self.lidar_data)
-            
+                         
             data = np.reshape(sum(self.lidar_data, []), (1, -1)).T
-            #data.flatten()
-            
-            
-            #print('data size:',data.shape,data)
-            
 
             frame_data_size = int(data[0] & 0xff)
             frame_data_size = frame_data_size | int(((data[1]&0xff)<<8))
@@ -180,7 +175,7 @@ class GL(object):
                 pulse_width = data[i*4+4]&0xff
                 pulse_width = pulse_width | ((data[i*4+5]&0xff)<<8)
 
-                if distance>30000:
+                if distance>25000:
                     distance = 0.0
                     
                 dist_array[i] = distance/1000.0
@@ -316,13 +311,13 @@ class GL(object):
         pulse_array = frame_data[1]
         angle_array = frame_data[2]
 
-        # for i in range(len(dist_array)-1):
-        #     if dist_array[i]>0.0 and dist_array[i+1]>0.0:
-        #         diff = (dist_array[i] - dist_array[i+1]) / 2.0
-        #         if diff>0.01*dist_array[i]:
-        #             dist_array[i] = 0.0
-        #         if diff<-0.01*dist_array[i]:
-        #             dist_array[i] = 0.0
+        for i in range(len(dist_array)-1):
+            if dist_array[i]>0.0 and dist_array[i+1]>0.0:
+                diff = (dist_array[i] - dist_array[i+1]) / 2.0
+                if diff>0.01*dist_array[i]:
+                    dist_array[i] = 0.0
+                if diff<-0.01*dist_array[i]:
+                    dist_array[i] = 0.0
             
         return dist_array, pulse_array, angle_array
 
@@ -343,56 +338,48 @@ class GL(object):
 
 # main
 if __name__ == '__main__':
-    
 
-    cv2.namedWindow('lidar_img')
+    vis_max_distance = 10.0
+    vis_height = 500
+    vis_width = vis_height*2
+    
     with udp_comm.UdpReaderThread(GL) as udp_gl:
         try:
-            print('Start GL Python Driver')
             udp_gl.SetFrameDataEnable(False)
+            time.sleep(1)
+            print('Start GL Python Driver')
             print('Serial Num : ' + udp_gl.GetSerialNum())
-            time.sleep(0.1)
-
             udp_gl.SetFrameDataEnable(True)
-            time.sleep(0.1)
-
-            width = 1280
-            height = 720
-            meter_to_pixel = 32.0/0.6
 
             start = time.time()
-            
-
+            count = 0
+            img_view = np.zeros((vis_height,vis_width,3), np.uint8)
             while True:
                 distance, pulse_width, angle = udp_gl.ReadFrameData()
 
                 if distance.shape[0]>0 and pulse_width.shape[0]>0 and angle.shape[0]>0:
-                    time_delta = time.time()-start
-                    if time_delta != 0:
-                        print(1/time_delta)
-                    start = time.time()
-
-
-                img_view = np.zeros((height,width,3), np.uint8)
-
+                    count = count + 1
+                    if count==1000:
+                        print(count/(time.time()-start))
+                        start = time.time()
+                        count = 0
+                    img_view = np.zeros((vis_height,vis_width,3), np.uint8)
                 
-                x = distance*np.cos(angle)
-                y = distance*np.sin(angle)
-                
-                img_x = x*meter_to_pixel + height/2
-                img_y = y*meter_to_pixel + width/2
-
-                for i in range(len(distance)):
-                    img_view[int(img_x[i]), int(img_y[i]), 2]= 255
-
-                # print('loop hz:',1/(a-loop_time_prev).total_seconds())
-                # loop_time_prev = a
-                if len(distance):
-
-                    cv2.imshow('lidar_img',img_view)
-                    cv2.waitKey(1)
+                    x = distance*np.cos(angle)
+                    y = distance*np.sin(angle)
                     
-                time.sleep(0.0125)
+                    img_x = x*vis_width/vis_max_distance + vis_width/2
+                    img_y = y*vis_height/vis_max_distance
+
+                    for i in range(distance.shape[0]):
+                        if img_x[i]>=0 and img_x[i]<vis_width and img_y[i]>=0 and img_y[i]<vis_height:
+                            img_view[int(img_y[i]), int(img_x[i]), 2]= 255
+                    img_view = cv2.flip(img_view, 0)
+
+                # time.sleep(0.001)
+                cv2.imshow('lidar_img',img_view)
+                cv2.waitKey(1)
+                
         except KeyboardInterrupt:
             udp_gl.SetFrameDataEnable(False)
             print('End GL Python Driver')

@@ -1,18 +1,11 @@
 import socket
 import threading
-import numpy as np
 
 pc_addr = '10.110.1.3'
 pc_port = 3000
 
 gl_addr = '10.110.1.2'
 gl_port = 2000
-
-# pc_addr = '10.110.1.3'
-# pc_port = 3000
-
-# gl_addr = '10.110.1.2'
-# gl_port = 2000
 
 
 class UdpReaderThread(threading.Thread):
@@ -28,8 +21,8 @@ class UdpReaderThread(threading.Thread):
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind((pc_addr, pc_port))
-        self.sock.setblocking(True)
-        self.sock.settimeout(1)
+        # self.sock.setblocking(True)
+        # self.sock.settimeout(1)
 
         print('::: Udp communication start!!')
 
@@ -55,7 +48,7 @@ class UdpReaderThread(threading.Thread):
         while self.alive:
             try:
                 # read all that is there or wait for one byte (blocking)
-                data = self.sock.recvfrom(1100)[0]
+                data = self.sock.recvfrom(2000)[0]
             except socket.error as e:
                 error = e
                 break
