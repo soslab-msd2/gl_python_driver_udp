@@ -36,6 +36,7 @@ class GL(object):
     def connection_made(self, transport):	
         """Called when reader thread is started"""	
         self.transport = transport	
+
     def data_received(self, data):	
         """Called with snippets received from the UDP"""	
         for a in data:	
@@ -83,8 +84,9 @@ class GL(object):
         for i in PS:	
             self.write(i)	
     def SendPacket(self, packet):	
-        for data in packet:	
-            self.transport.write(bytes(bytearray([data])))	
+        # for data in packet:	
+        #     self.transport.write(bytes(bytearray([data])))	
+        self.transport.write(bytearray(packet))
 
     def WritePacket(self, PI, PL, SM, CAT0, CAT1, DTn):	
         self.send_packet = []	
@@ -351,18 +353,11 @@ if __name__ == '__main__':
             print('Serial Num : ' + udp_gl.GetSerialNum())
             udp_gl.SetFrameDataEnable(True)
 
-            start = time.time()
-            count = 0
             img_view = np.zeros((vis_height,vis_width,3), np.uint8)
             while True:
                 distance, pulse_width, angle = udp_gl.ReadFrameData()
 
                 if distance.shape[0]>0 and pulse_width.shape[0]>0 and angle.shape[0]>0:
-                    count = count + 1
-                    if count==1000:
-                        print(count/(time.time()-start))
-                        start = time.time()
-                        count = 0
                     img_view = np.zeros((vis_height,vis_width,3), np.uint8)
                 
                     x = distance*np.cos(angle)
@@ -382,6 +377,7 @@ if __name__ == '__main__':
                 
         except KeyboardInterrupt:
             udp_gl.SetFrameDataEnable(False)
+            time.sleep(1)
             print('End GL Python Driver')
             sys.exit()
 
